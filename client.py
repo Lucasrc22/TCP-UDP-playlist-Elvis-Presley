@@ -63,14 +63,11 @@ def download_udp(host, port, filename):
 # ---------------------------------------
 #   CONSULTA AO CONTROLLER
 # ---------------------------------------
-def ask_controller(filename):
-    print("\n[CLIENTE] Consultando o Controller...")
+def ask_controller(filename, controller_ip="127.0.0.1"):
+    print(f"\n[CLIENTE] Consultando o Controller em {controller_ip}:5000...")
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    # Autodescobre IP do Controller no Wi-Fi
-    CONTROLLER_IP = socket.gethostbyname(socket.gethostname())
-
-    s.connect((CONTROLLER_IP, 5000))
+    s.connect((controller_ip, 5000))
     s.send(filename.encode())
 
     data = s.recv(4096)
@@ -103,7 +100,13 @@ MUSICAS = {
 if __name__ == "__main__":
 
     print("=== BIBLIOTECA DO ELVIS PRESLEY ===\n")
-    print("Escolha o número da música:")
+    
+    # Configuração do IP do Controller
+    controller_ip = input("IP do Controller (Enter para localhost): ").strip()
+    if not controller_ip:
+        controller_ip = "127.0.0.1"
+    
+    print("\nEscolha o número da música:")
 
     for num, (mp4, txt) in MUSICAS.items():
         nome = mp4.replace(".mp4","").replace("_"," ").title()
@@ -121,7 +124,7 @@ if __name__ == "__main__":
         filename = MUSICAS[escolha][1]
 
     # Consulta o Controller
-    info = ask_controller(filename)
+    info = ask_controller(filename, controller_ip)
 
     print("\n[CLIENTE] Controller decidiu:")
     print(info)

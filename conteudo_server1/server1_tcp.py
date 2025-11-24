@@ -1,7 +1,8 @@
 import socket
 import os
 
-BASE_PATH = "/home/guest/Documentos/Redes/Redes2/conteudo_server1/files/"
+# Use a path relative to this script so the project works on Windows and Linux
+BASE_DIR = os.path.join(os.path.dirname(__file__), "files")
 
 def tcp_server():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -15,7 +16,7 @@ def tcp_server():
 
         # Recebe o nome do arquivo
         filename = conn.recv(1024).decode().strip()
-        filepath = BASE_PATH + filename
+        filepath = os.path.join(BASE_DIR, filename)
 
         if not os.path.exists(filepath):
             print("Arquivo não encontrado:", filename)

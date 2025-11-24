@@ -3,7 +3,8 @@ import os
 
 UDP_IP = "0.0.0.0"
 UDP_PORT = 6002
-BASE_DIR = "/home/guest/Documentos/Redes/Redes2/conteudo_server2/files/"
+# Use a path relative to this script
+BASE_DIR = os.path.join(os.path.dirname(__file__), "files")
 
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

@@ -71,7 +71,8 @@ FILES = {
 # Decide se será TCP ou UDP
 # ------------------------------------------------------------
 def decide_protocol(filename):
-    path = f"./conteudo_server1/files/{filename}"
+    # Resolve path relative to this controller script so size checks work
+    path = os.path.join(os.path.dirname(__file__), "conteudo_server1", "files", filename)
     size = os.path.getsize(path)
 
     if size <= 7000:

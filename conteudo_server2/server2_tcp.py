@@ -2,7 +2,8 @@ import socket
 import os
 import threading
 
-BASE_PATH = "./conteudo_server2/files/"
+# Use a path relative to this script
+BASE_DIR = os.path.join(os.path.dirname(__file__), "files")
 
 def tcp_server():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -13,17 +14,25 @@ def tcp_server():
     while True:
         conn, addr = s.accept()
         filename = conn.recv(1024).decode().strip()
-        path = BASE_PATH + filename
+        filepath = os.path.join(BASE_DIR, filename)
 
-        if not os.path.exists(path):
+        if not os.path.exists(filepath):
             conn.send(b"NOT_FOUND")
             conn.close()
             continue
 
-        with open(path, "rb") as f:
-            data = f.read()
+        # Envia primeiro o tamanho do arquivo (16 bytes), compatível com o cliente
+        filesize = os.path.getsize(filepath)
+        conn.send(f"{filesize}".encode().ljust(16, b' '))
 
-        conn.sendall(data)
+        # Envia o arquivo em blocos
+        with open(filepath, "rb") as f:
+            while True:
+                chunk = f.read(4096)
+                if not chunk:
+                    break
+                conn.sendall(chunk)
+
         conn.close()
 
 def udp_server():
@@ -34,13 +43,13 @@ def udp_server():
     while True:
         data, addr = s.recvfrom(4096)
         filename = data.decode().strip()
-        path = BASE_PATH + filename
+        filepath = os.path.join(BASE_DIR, filename)
 
-        if not os.path.exists(path):
+        if not os.path.exists(filepath):
             s.sendto(b"NOT_FOUND", addr)
             continue
 
-        with open(path, "rb") as f:
+        with open(filepath, "rb") as f:
             udp_data = f.read()
 
         s.sendto(udp_data, addr)
