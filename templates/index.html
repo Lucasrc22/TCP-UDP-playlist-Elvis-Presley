@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Biblioteca Elvis Presley</title>
+    <style>
+        body {
+            background: #1a1a2e;
+            color: #eee;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        h1 {
+            color: #ffd700;
+            text-align: center;
+        }
+        .container {
+            width: 600px;
+            margin: auto;
+            background: #0f3460;
+            padding: 20px;
+            border-radius: 12px;
+        }
+        select, input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border-radius: 6px;
+            border: none;
+            background: #16213e;
+            color: #fff;
+        }
+        button {
+            margin-top: 15px;
+            width: 100%;
+            background: #ffd700;
+            color: #000;
+            padding: 14px;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #fff27a;
+        }
+        .log {
+            background: #000;
+            padding: 10px;
+            margin-top: 15px;
+            font-family: monospace;
+            height: 150px;
+            overflow-y: auto;
+            border-radius: 6px;
+            color: #0f0;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Biblioteca Elvis Presley</h1>
+
+<div class="container">
+
+    <label>Música:</label>
+    <select id="music">
+        {% for id, dados in musicas.items() %}
+            <option value="{{ id }}">{{ dados[2] }}</option>
+        {% endfor %}
+    </select>
+
+    <label>Tipo de arquivo:</label>
+    <select id="tipo">
+        <option value="mp4">Música (MP4)</option>
+        <option value="txt">Letra (TXT)</option>
+    </select>
+
+    <label>IP do Controller:</label>
+    <input id="controller_ip" type="text" value="127.0.0.1">
+
+    <button onclick="baixar()">Baixar</button>
+
+    <div class="log" id="log"></div>
+
+</div>
+
+<script>
+function log(txt) {
+    document.querySelector("#log").innerHTML += txt + "<br>";
+}
+
+function baixar() {
+    document.querySelector("#log").innerHTML = "";
+
+    let music_num = document.querySelector("#music").value;
+    let tipo = document.querySelector("#tipo").value;
+    let controller_ip = document.querySelector("#controller_ip").value;
+
+    log("[CLIENTE] Enviando solicitação...");
+
+    fetch("/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            music_num: music_num,
+            file_type: tipo,
+            controller_ip: controller_ip
+        })
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if (data.error) {
+            log("ERRO: " + data.error);
+            return;
+        }
+
+        log("Servidor escolhido: " + data.server);
+        log("Protocolo: " + data.protocol);
+        log("Tamanho: " + data.size + " bytes");
+
+        let a = document.createElement("a");
+        a.href = data.download_url;
+        a.download = data.filename;
+        a.click();
+
+        log("Download concluído!");
+    })
+    .catch(err => log("ERRO: " + err));
+}
+</script>

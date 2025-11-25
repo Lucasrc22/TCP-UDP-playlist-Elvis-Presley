@@ -2,69 +2,79 @@ import socket
 import json
 import os
 from flask import Flask, render_template, request, jsonify, send_file
-import threading
 
 app = Flask(__name__)
 
 # ---------------------------------------
-#   DOWNLOAD VIA TCP
+# DOWNLOAD VIA TCP
 # ---------------------------------------
 def download_tcp(host, port, filename):
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((host, port))
-    s.send(filename.encode())
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((host, port))
+        s.send(filename.encode())
 
-    header = s.recv(16).decode().strip()
-    if header == "NOT_FOUND":
+        header = s.recv(16).decode().strip()
+
+        if not header or header == "NOT_FOUND":
+            s.close()
+            return None
+
+        size = int(header)
+        data = b""
+        remaining = size
+
+        while remaining > 0:
+            chunk = s.recv(min(4096, remaining))
+            if not chunk:
+                break
+            data += chunk
+            remaining -= len(chunk)
+
         s.close()
+        return data
+
+    except Exception as e:
+        print("[ERRO TCP]", e)
         return None
 
-    filesize = int(header)
-    data = b""
-    remaining = filesize
-
-    while remaining > 0:
-        chunk = s.recv(min(4096, remaining))
-        if not chunk:
-            break
-        data += chunk
-        remaining -= len(chunk)
-
-    s.close()
-    return data
-
 
 # ---------------------------------------
-#   DOWNLOAD VIA UDP
+# DOWNLOAD VIA UDP
 # ---------------------------------------
 def download_udp(host, port, filename):
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.settimeout(5)
-    s.sendto(filename.encode(), (host, port))
-
     try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(5)
+        s.sendto(filename.encode(), (host, port))
         data, _ = s.recvfrom(10000000)
         s.close()
         return data
-    except socket.timeout:
-        s.close()
+    except Exception as e:
+        print("[ERRO UDP]", e)
         return None
 
 
 # ---------------------------------------
-#   CONSULTA AO CONTROLLER
+# CONSULTA AO CONTROLLER (com validação)
 # ---------------------------------------
 def ask_controller(filename, controller_ip):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((controller_ip, 5000))
     s.send(filename.encode())
-    data = s.recv(4096)
+
+    raw = s.recv(4096).decode().strip()
     s.close()
-    return json.loads(data.decode())
+
+    # Segurança: controller sempre deve retornar JSON
+    if not raw.startswith("{"):
+        raise Exception(f"Resposta inválida do controller: {raw}")
+
+    return json.loads(raw)
 
 
 # ---------------------------------------
-#   LISTA DE MÚSICAS
+# MÚSICAS
 # ---------------------------------------
 MUSICAS = {
     1: ("jailhouse_rock.mp4", "jailhouse_rock.txt", "Jailhouse Rock"),
@@ -82,7 +92,7 @@ MUSICAS = {
 
 
 # ---------------------------------------
-#   ROTAS WEB
+# ROTAS WEB
 # ---------------------------------------
 @app.route('/')
 def index():
@@ -92,30 +102,27 @@ def index():
 @app.route('/download', methods=['POST'])
 def download():
     try:
-        data = request.json
-        music_num = int(data['music_num'])
-        file_type = data['file_type']
-        controller_ip = data['controller_ip']
+        req = request.json
+        music_num = int(req['music_num'])
+        file_type = req['file_type']
+        controller_ip = req['controller_ip']
 
-        # Determina filename
-        if file_type == 'mp4':
-            filename = MUSICAS[music_num][0]
-        else:
-            filename = MUSICAS[music_num][1]
+        # Seleção do arquivo correto
+        filename = MUSICAS[music_num][0] if file_type == 'mp4' else MUSICAS[music_num][1]
 
         # Consulta controller
         info = ask_controller(filename, controller_ip)
 
-        # Download
+        # Download conforme protocolo
         if info["protocol"] == "TCP":
             file_data = download_tcp(info["host"], info["tcp_port"], filename)
         else:
             file_data = download_udp(info["host"], info["udp_port"], filename)
 
         if not file_data:
-            return jsonify({"error": "Erro ao baixar arquivo"}), 500
+            return jsonify({"error": "Falha no download do servidor"}), 500
 
-        # Salva temporariamente
+        # Salvar temporário
         temp_path = f"temp_{filename}"
         with open(temp_path, "wb") as f:
             f.write(file_data)
@@ -135,11 +142,16 @@ def download():
 
 @app.route('/get_file/<path:filename>')
 def get_file(filename):
+    if not os.path.exists(filename):
+        return "Arquivo não existe mais no servidor.", 404
     return send_file(filename, as_attachment=True, download_name=filename.replace("temp_", "baixado_"))
 
 
+# ---------------------------------------
+# INICIAR SERVIDOR
+# ---------------------------------------
 if __name__ == '__main__':
-    # Obtém IP local
+    # Descobrir IP local
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(("8.8.8.8", 80))
@@ -149,13 +161,11 @@ if __name__ == '__main__':
     finally:
         s.close()
 
-    print("\n" + "="*60)
-    print("🎸 SERVIDOR WEB ELVIS PRESLEY INICIADO!")
-    print("="*60)
-    print(f"\n📱 Acesse no CELULAR: http://{local_ip}:8080")
-    print(f"💻 Acesse no PC: http://127.0.0.1:8080")
-    print(f"\nIP da rede: {local_ip}")
-    print("\nPressione Ctrl+C para parar\n")
-    print("="*60 + "\n")
+    print("=" * 60)
+    print("SERVIDOR WEB ELVIS PRESLEY INICIADO!")
+    print("=" * 60)
+    print(f"Acesse pelo PC: http://127.0.0.1:8080")
+    print(f"Acesse pelo celular: http://{local_ip}:8080")
+    print("=" * 60)
 
     app.run(host='0.0.0.0', port=8080, debug=False)
