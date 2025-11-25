@@ -1,36 +1,51 @@
 import socket
 import os
+import threading
 
-# Use a path relative to this script so the project works on Windows and Linux
+# Caminho correto para conteudo_server2/files
 BASE_DIR = os.path.join(os.path.dirname(__file__), "files")
 
 def tcp_server():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(("0.0.0.0", 7001))
     s.listen(5)
-    print("TCP Server pronto na porta 7001")
+    print("[S2 TCP] Servidor TCP rodando em 0.0.0.0:7001")
 
     while True:
         conn, addr = s.accept()
-        print("Cliente conectado:", addr)
+        print(f"[S2 TCP] Conexão de {addr}")
 
         # Recebe o nome do arquivo
-        filename = conn.recv(1024).decode().strip()
-        filepath = os.path.join(BASE_DIR, filename)
+        raw = conn.recv(1024)
 
-        if not os.path.exists(filepath):
-            print("Arquivo não encontrado:", filename)
-            conn.send(b"NOT_FOUND")
+        if not raw:
+            print("[S2 TCP] ERRO: Cliente enviou requisição vazia.")
+            conn.send(b"NOT_FOUND".ljust(16, b' '))
             conn.close()
             continue
 
-        # Envia primeiro o tamanho do arquivo (8 bytes)
+        filename = raw.decode().strip()
+        filepath = os.path.join(BASE_DIR, filename)
+
+        # Caso filename esteja vazio
+        if filename == "":
+            print("[S2 TCP] ERRO: Nome de arquivo vazio recebido.")
+            conn.send(b"NOT_FOUND".ljust(16, b' '))
+            conn.close()
+            continue
+
+        # Verifica se o arquivo existe
+        if not os.path.isfile(filepath):
+            print(f"[S2 TCP] Arquivo NÃO encontrado: {filename}")
+            conn.send(b"NOT_FOUND".ljust(16, b' '))
+            conn.close()
+            continue
+
+        # Envia tamanho do arquivo
         filesize = os.path.getsize(filepath)
-        conn.send(f"{filesize}".encode().ljust(16, b' '))
+        conn.send(str(filesize).encode().ljust(16, b' '))
 
-        print(f"Enviando {filename} ({filesize} bytes)...")
-
-        # Envia o arquivo em blocos
+        # Envia o arquivo real
         with open(filepath, "rb") as f:
             while True:
                 chunk = f.read(4096)
@@ -38,9 +53,9 @@ def tcp_server():
                     break
                 conn.sendall(chunk)
 
-        print("Envio concluído.\n")
+        print(f"[S2 TCP] Arquivo enviado: {filename} ({filesize} bytes)")
         conn.close()
 
 
-if __name__ == "__main__":
-    tcp_server()
+# Mantém servidor ativo
+tcp_server()
